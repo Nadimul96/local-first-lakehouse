@@ -1,8 +1,8 @@
 """SQLite connections, transactions and checksum-pinned migrations.
 
-Every local store is a separate SQLite file opened in WAL mode with `synchronous=FULL`,
-so a committed transaction has been fsynced before `COMMIT` returns. That is the
-durability primitive the rest of the pipeline builds on.
+Every local store is a separate SQLite file opened in WAL mode with `synchronous=FULL`
+(and `fullfsync` on macOS), so a committed transaction is on stable storage before
+`COMMIT` returns. That is the durability primitive the rest of the pipeline builds on.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from urllib.parse import quote
 
 from .canonical import iso_utc, system_clock
 from .errors import IntegrityError
-from .fsutil import secure_dir
+from .fsutil import FULL_FSYNC, secure_dir
 
 
 def connect(path: Path, *, auto_vacuum: bool = False) -> sqlite3.Connection:
@@ -31,6 +31,9 @@ def connect(path: Path, *, auto_vacuum: bool = False) -> sqlite3.Connection:
         connection.execute("PRAGMA auto_vacuum=INCREMENTAL")
     connection.execute("PRAGMA journal_mode=WAL")
     connection.execute("PRAGMA synchronous=FULL")
+    if FULL_FSYNC:  # macOS: have SQLite use F_FULLFSYNC too (see fsutil)
+        connection.execute("PRAGMA fullfsync=ON")
+        connection.execute("PRAGMA checkpoint_fullfsync=ON")
     connection.execute("PRAGMA foreign_keys=ON")
     connection.execute("PRAGMA busy_timeout=30000")
     path.chmod(0o600)

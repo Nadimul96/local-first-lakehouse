@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Any
+
+from .fsutil import full_fsync
 
 
 class Journal:
@@ -17,7 +18,7 @@ class Journal:
         with self.path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(entry, sort_keys=True, default=str) + "\n")
             handle.flush()
-            os.fsync(handle.fileno())
+            full_fsync(handle.fileno())
 
     def entries(self) -> list[dict[str, Any]]:
         if not self.path.exists():

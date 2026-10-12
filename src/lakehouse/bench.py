@@ -130,7 +130,7 @@ def format_table(result: dict[str, Any]) -> str:
             f"{result['encryption_overhead_pct']:.2f}% "
             f"({result['encryption_overhead_bytes_per_object']:.0f} B/object)",
         ),
-        ("AES-256-GCM seal throughput", f"{result['aes_gcm_mb_per_s']:,.0f} MB/s"),
+        ("Seal throughput (AES-256-GCM + 2x SHA-256)", f"{result['aes_gcm_mb_per_s']:,.0f} MB/s"),
         (
             "Upload + read-back verify (local store)",
             f"{result['sync_objects_per_s']:,.0f} objects/s",

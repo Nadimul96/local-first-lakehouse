@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import os
+
+# The suite simulates process crashes, not power loss, so plain fsync() is enough here and
+# keeps macOS runs fast. Must be set before lakehouse is imported.
+os.environ.setdefault("LAKEHOUSE_FSYNC", "os")
 from collections.abc import Iterator
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
