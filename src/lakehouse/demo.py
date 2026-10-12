@@ -90,14 +90,18 @@ def run_demo(
         try:
             echo(_line("sync", pipeline.sync()))
         except InjectedCrash as crash:
+            counts = pipeline.queue.stats()["by_status"]
             pipeline.journal.append(
                 {
                     "step": "crash",
                     "started_at": iso_utc(pipeline.clock()),
-                    "result": {"checkpoint": str(crash)},
+                    "result": {"checkpoint": str(crash), "queue": counts},
                 }
             )
-            echo(f"  {'crash':<8} injected at {crash} (simulated process death)")
+            echo(
+                f"  {'crash':<8} injected at {crash} (simulated process death);"
+                f" {counts['completed']} of {sum(counts.values())} objects already completed"
+            )
     with Pipeline(settings) as pipeline:
         if inject_crash:
             pipeline.journal.append(
@@ -140,7 +144,7 @@ def _line(name: str, entry: dict[str, Any]) -> str:
             f"{r['segments']} segments -> {r['files']} Bronze files ({r['bytes'] / 1e6:.2f} MB)"
         ),
         "sync": lambda: (
-            f"{r['verified']} objects verified ({r['uploaded']} new, {r['already_present']}"
+            f"{r['verified']} verified this run ({r['uploaded']} new, {r['already_present']}"
             f" already present, {r['resumed']} resumed, {len(r['failures'])} failed)"
         ),
         "model": lambda: (
