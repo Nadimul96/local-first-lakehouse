@@ -186,7 +186,8 @@ def timeline(snapshot: dict[str, Any]) -> str:
     for entry in snapshot["journal"]:
         start, end = epoch(entry.get("started_at")), epoch(entry.get("finished_at"))
         if start is not None and entry["step"] in ("crash", "restart"):
-            step_lane.points.append(Point(start, "m-crash", _event_text(entry)))
+            series = "m-crash" if entry["step"] == "crash" else "m-restart"
+            step_lane.points.append(Point(start, series, _event_text(entry)))
         elif start is not None and end is not None:
             step_lane.spans.append(
                 Span(
@@ -222,7 +223,8 @@ def timeline(snapshot: dict[str, Any]) -> str:
     )
     events = [e for e in snapshot["journal"] if e["step"] in ("crash", "restart")]
     notes = "".join(
-        f'<li><span class="pill critical small">{ICON_ALERT}{esc(e["step"])}</span>'
+        f'<li><span class="pill small {"critical" if e["step"] == "crash" else "neutral"}">'
+        f"{ICON_ALERT if e['step'] == 'crash' else ICON_CHECK}{esc(e['step'])}</span>"
         f"<span>{esc(_event_text(e))}</span></li>"
         for e in events
     )

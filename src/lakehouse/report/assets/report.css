@@ -125,6 +125,7 @@ body {
 .pill svg { width: 14px; height: 14px; }
 .pill.good { color: var(--good-text); background: var(--good-wash); }
 .pill.critical { color: var(--critical-text); background: var(--critical-wash); }
+.pill.neutral { color: var(--ink-2); background: var(--surface-2); }
 .pill.small { font-size: 11.5px; padding: 1px 8px 1px 6px; margin-right: 8px; }
 .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .tile {
@@ -196,6 +197,7 @@ body {
 .m-verified, .q-completed { background: var(--s3); }
 .m-reclaimed { background: var(--s4); }
 .m-crash { background: var(--critical); }
+.m-restart { background: var(--ink-2); }
 
 /* Lanes */
 .lanes { position: relative; }
