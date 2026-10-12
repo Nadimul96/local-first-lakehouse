@@ -1,0 +1,59 @@
+# Optional infrastructure. `make demo` needs none of this.
+#
+#   docker compose up -d                      # MinIO (S3-compatible) with a `lakehouse` bucket
+#   docker compose --profile catalog up -d    # plus a Postgres catalog with a SELECT/INSERT role
+#
+# Then point the pipeline at it (see .env.example for the full list):
+#   LAKEHOUSE_STORE=s3 LAKEHOUSE_S3_ENDPOINT=http://localhost:9000 LAKEHOUSE_S3_BUCKET=lakehouse
+#   LAKEHOUSE_S3_PATH_STYLE=true AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=...
+#
+# The default passwords below are placeholders for a machine-local sandbox. Override them
+# in .env for anything reachable from a network.
+services:
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-lakehouse}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-local-only}
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio-setup:
+    image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-lakehouse}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-local-only}
+    entrypoint: >
+      /bin/sh -c "mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD
+      && mc mb --ignore-existing local/lakehouse"
+
+  postgres:
+    profiles: ["catalog"]
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: lakehouse_owner
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-local-only}
+      POSTGRES_DB: lakehouse
+      LAKEHOUSE_PG_RUNTIME_PASSWORD: ${LAKEHOUSE_PG_RUNTIME_PASSWORD:-change-me-runtime}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - ./sql/postgres:/sql:ro
+      - ./deploy/postgres-init.sh:/docker-entrypoint-initdb.d/10-lakehouse.sh:ro
+      - postgres-data:/var/lib/postgresql
+
+volumes:
+  minio-data:
+  postgres-data:
