@@ -59,7 +59,8 @@ def _keys(settings: Settings) -> str:
             raise ValueError(f"set {', '.join(missing)}")
         return "keys from environment"
     if settings.key_provider == "keychain":
-        if not sys.platform.startswith("darwin"):
+        on_macos = sys.platform == "darwin"  # a variable, so mypy does not prune this per platform
+        if not on_macos:
             raise ValueError("the keychain provider needs macOS")
         return "macOS Keychain via /usr/bin/security"
     return f"key files under {settings.keys_dir / 'data'} (created on first run, mode 0600)"
