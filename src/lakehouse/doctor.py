@@ -59,7 +59,7 @@ def _keys(settings: Settings) -> str:
             raise ValueError(f"set {', '.join(missing)}")
         return "keys from environment"
     if settings.key_provider == "keychain":
-        if sys.platform != "darwin":
+        if not sys.platform.startswith("darwin"):
             raise ValueError("the keychain provider needs macOS")
         return "macOS Keychain via /usr/bin/security"
     return f"key files under {settings.keys_dir / 'data'} (created on first run, mode 0600)"

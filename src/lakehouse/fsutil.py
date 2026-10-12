@@ -24,13 +24,15 @@ def secure_dir(path: Path) -> Path:
 # On macOS plain fsync() leaves data in the drive's write cache; only F_FULLFSYNC asks the
 # drive to persist it, at several milliseconds per call. LAKEHOUSE_FSYNC=os opts out: it
 # still survives a process crash, not a power cut. The test suite uses it for speed.
-FULL_FSYNC = os.environ.get("LAKEHOUSE_FSYNC", "full") != "os" and hasattr(fcntl, "F_FULLFSYNC")
+# Read via getattr: F_FULLFSYNC exists only on macOS, and type stubs on Linux omit it.
+_F_FULLFSYNC: int | None = getattr(fcntl, "F_FULLFSYNC", None)
+FULL_FSYNC = os.environ.get("LAKEHOUSE_FSYNC", "full") != "os" and _F_FULLFSYNC is not None
 
 
 def full_fsync(descriptor: int) -> None:
     """Flush a file descriptor to stable storage."""
-    if FULL_FSYNC:
-        fcntl.fcntl(descriptor, fcntl.F_FULLFSYNC)
+    if FULL_FSYNC and _F_FULLFSYNC is not None:
+        fcntl.fcntl(descriptor, _F_FULLFSYNC)
     else:
         os.fsync(descriptor)
 
