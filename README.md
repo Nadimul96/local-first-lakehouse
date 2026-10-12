@@ -1,6 +1,8 @@
 # local-first-lakehouse
 
-A local-first, client-side-encrypted medallion pipeline. Events land in a durable local log, become immutable Bronze Parquet, are sealed with AES-256-GCM, uploaded through a leased queue, read back and verified, and modeled into Silver and Gold with DuckDB. Local copies are deleted only after the remote copy is proven.
+**Collect events offline, redact and encrypt them on the device, and ship them to object storage with every hand-off proven: 0 lost, 0 duplicated, 16 crash points tested.**
+
+A local-first medallion pipeline. Events land in a durable local log, become immutable Bronze Parquet, are sealed with AES-256-GCM, uploaded through a leased queue, read back and verified, and modeled into Silver and Gold with DuckDB. Local copies are deleted only after the remote copy is proven.
 
 [![CI](https://github.com/Nadimul96/local-first-lakehouse/actions/workflows/ci.yml/badge.svg)](https://github.com/Nadimul96/local-first-lakehouse/actions/workflows/ci.yml)
 ![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)
@@ -13,13 +15,23 @@ A local-first, client-side-encrypted medallion pipeline. Events land in a durabl
 
 Data that is produced on a laptop, a point-of-sale box or an edge device has to survive the device. You want to keep collecting while offline, ship everything to cheap object storage when you can, and free local disk once it is safe. Each of those steps can fail halfway: the process dies after a write but before the acknowledgement, an upload succeeds but the receipt is never written, a retry uploads the same object twice, a key gets rotated mid-flight, or the bytes in the bucket are not the bytes you sent. If any of those cases can lose or double-count an event, or delete the only good copy, the numbers downstream are wrong and nobody knows. This project is a small, complete pipeline in which every step is idempotent, every hand-off is proven, and a crash at any point converges on re-run.
 
-## Why it's interesting
+## Why this is novel
 
 - **An acknowledgement is a promise.** The ingest hub redacts, deduplicates and orders events, then acknowledges only after the SQLite commit has reached stable storage (on macOS that means `F_FULLFSYNC`, because plain `fsync()` stops at the drive's cache). Per-producer watermarks with explicit gap ranges prove which sequence numbers arrived, and keep deduplicating after the rows are deleted. [`ingest/hub.py`](src/lakehouse/ingest/hub.py), [`ingest/eventlog.py`](src/lakehouse/ingest/eventlog.py)
 - **Exactly-once export without a coordinator.** Sealed log segments become Bronze through a reserve/commit ledger. The cursor moves only after the encrypted objects are in the durable queue, and only past a window that starts exactly at high-water + 1. [`export.py`](src/lakehouse/export.py), [`source.py`](src/lakehouse/source.py)
 - **Client-side AES-256-GCM with an authenticated header.** The canonical JSON header (key id, plaintext hash, object key) is the GCM associated data, behind versioned magic bytes. A flipped bit anywhere, or a valid object moved to another key, fails authentication. [`crypto.py`](src/lakehouse/crypto.py)
 - **A SQLite queue with leases and fencing tokens.** Claims run under `BEGIN IMMEDIATE`; a worker whose lease was taken over cannot write. Every upload is read back and checked four ways before an append-only receipt is written. [`queue.py`](src/lakehouse/queue.py), [`sync.py`](src/lakehouse/sync.py)
 - **Crash-tested, not crash-hoped.** 16 named crash points, each hit by an exception and by `os._exit` in a subprocess (like `kill -9`), then re-run: every event exactly once in Silver, every object verified, every local copy reclaimed. Running the whole pipeline twice leaves every durable byte identical. [`tests/test_crash_matrix.py`](tests/test_crash_matrix.py), [`tests/test_idempotency.py`](tests/test_idempotency.py)
+
+## Where AI fits
+
+This project contains no model, no LLM call and no ML code. Its role is the step before AI: capturing event data that analytics or model training can use without leaking what should not leave the device.
+
+- **Redaction before anything is stored.** The hub applies 16 pattern rules (API keys for OpenAI, Anthropic, GitHub, AWS, Google, Stripe and Slack; JWTs, bearer tokens, private keys, URL passwords, `password=...` assignments, emails, SSNs, Luhn-checked card numbers, high-entropy strings), plus hides any value under a credential-named field, before the commit, so the raw values never reach the log, Parquet or the bucket. [`ingest/redaction.py`](src/lakehouse/ingest/redaction.py)
+- **Joinable, not readable.** Each redacted value becomes a stable HMAC-SHA256 tag under a per-install key, so the same email maps to the same tag and you can still count distinct users or join on it, without the plaintext.
+- **Encrypted before upload.** The storage provider only sees ciphertext; the Silver and Gold tables a feature pipeline or training job would read are built locally, where the keys are. [`crypto.py`](src/lakehouse/crypto.py)
+
+Limits: redaction is pattern-based (regex, validators, entropy), not a learned PII detector, so names, addresses and free-text personal details are not caught. Tags are pseudonyms, not anonymization.
 
 ## Quickstart
 
