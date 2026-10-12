@@ -1,0 +1,75 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "local-first-lakehouse"
+version = "0.1.0"
+description = "A local-first, client-side-encrypted medallion pipeline: durable event log, Bronze Parquet, AES-256-GCM, leased upload queue, read-back verification, DuckDB Silver/Gold, proof-gated reclamation."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Nadimul Haque" }]
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+dependencies = [
+    "cryptography>=50.0.2",
+    "duckdb>=1.5.6",
+]
+
+[project.optional-dependencies]
+s3 = []
+postgres = []
+
+[project.scripts]
+lakehouse = "lakehouse.cli:main"
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.169.0",
+    "mypy>=2.4.0",
+    "pytest>=9.1.1",
+    "ruff>=0.17.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lakehouse"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "SIM", "RUF", "S", "PTH", "C4", "PL"]
+ignore = [
+    "PLR0913", # explicit keyword-only constructors read better than option bags here
+    "PLR2004", # small literal thresholds in checks are clearer inline
+    "S608",    # SQL is built only from module constants, values are always bound
+    "S311",    # random is used for synthetic data, never for secrets
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S603", "PLR0915", "PLC0415", "SIM117"]
+# Lazy imports keep `lakehouse --help` fast; the report uses typographic dashes on purpose.
+"src/lakehouse/cli.py" = ["PLC0415"]
+"src/lakehouse/doctor.py" = ["PLC0415"]
+"src/lakehouse/report/*" = ["RUF001"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["lakehouse"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = ["slow: subprocess crash tests (still run in CI)"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src/lakehouse"]
+warn_unreachable = true
