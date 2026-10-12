@@ -22,8 +22,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-s3 = []
-postgres = []
+s3 = ["boto3>=1.43.111"]
+postgres = ["psycopg[binary]>=3.3.6"]
 
 [project.scripts]
 lakehouse = "lakehouse.cli:main"
